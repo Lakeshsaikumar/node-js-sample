@@ -1,0 +1,58 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+  # Stage 1: Build
+  - stage: Java_Deployment
+    displayName: 'Build Stage (Java_Deployment)'
+    jobs:
+      - job: Build
+        displayName: 'Build Node.js Application'
+        steps:
+          - checkout: self
+
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '16.x'
+            displayName: 'Install Node.js'
+
+          - script: |
+              npm install
+            displayName: 'Install Dependencies'
+
+          # Publish artifacts for deployment
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathToPublish: '$(Build.SourcesDirectory)'
+              artifactName: 'drop'
+              publishLocation: 'Container'
+
+  # Stage 2: Deploy via SSH
+  - stage: Java_YAML
+    displayName: 'Deployment Stage (Java_YAML)'
+    dependsOn: Java_Deployment
+    jobs:
+      - job: Deploy
+        displayName: 'Deploy Node.js to Remote Server via SSH'
+        steps:
+          - download: current
+            artifact: drop
+
+          - task: CopyFilesOverSSH@0
+            inputs:
+              sshEndpoint: 'Java_YAML'          # <-- Updated SSH endpoint
+              sourceFolder: '$(Pipeline.Workspace)/drop'
+              targetFolder: '/var/www/node-sample'
+              cleanTargetFolder: true
+
+          - task: SSH@0
+            inputs:
+              sshEndpoint: 'Java_YAML'          # <-- Updated SSH endpoint
+              runOptions: 'commands'
+              commands: |
+                cd /var/www/node-sample
+                npm install --production
+                pm2 restart all || pm2 start index.js --name node-sample
