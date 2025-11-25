@@ -17,15 +17,18 @@ stages:
         versionSpec: '16.x'
       displayName: 'Install Node.js'
 
+    # Ensure dependencies are installed
     - script: |
-        npm install
+        npm install --omit=dev
       displayName: 'Install Dependencies'
 
+    # Debug: list all files
     - script: |
-        echo "Listing app folder:"
+        echo "Listing app folder recursively:"
         ls -R $(Build.SourcesDirectory)
       displayName: 'Debug: All files'
 
+    # Publish all app files (ensure package.json is included)
     - task: PublishPipelineArtifact@1
       inputs:
         targetPath: '$(Build.SourcesDirectory)'
@@ -44,21 +47,30 @@ stages:
         artifactName: 'nodeapp'
         targetPath: '$(Pipeline.Workspace)/nodeapp'
 
+    # Copy all files to the server
     - task: CopyFilesOverSSH@0
       inputs:
         sshEndpoint: 'Java_YAML'
         sourceFolder: '$(Pipeline.Workspace)/nodeapp'
-        contents: '**'                         # ensure all files
+        contents: '**'
         targetFolder: '/home/itadmin/node-sample'
         cleanTargetFolder: true
 
+    # SSH commands: install dependencies and restart/start app
     - task: SSH@0
       inputs:
         sshEndpoint: 'Java_YAML'
         runOptions: 'commands'
         commands: |
           cd /home/itadmin/node-sample
-          pwd
+          echo "Current folder contents:"
           ls -la
-          npm install --production
-          pm2 restart all || pm2 start index.js --name node-sample
+
+          # Install dependencies
+          npm install --omit=dev
+
+          # Restart app safely with PM2
+          pm2 describe node-sample > /dev/null 2>&1 && pm2 restart node-sample || pm2 start index.js --name node-sample
+
+          # Optional: list PM2 processes
+          pm2 ls
