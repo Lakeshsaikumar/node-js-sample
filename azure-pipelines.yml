@@ -3,65 +3,52 @@ trigger:
 
 stages:
 
-# =========================
-# Stage 1: Build
-# =========================
 - stage: Build
   displayName: 'Build Node.js App'
   jobs:
   - job: BuildJob
-    displayName: 'Install and Package Node.js App'
     pool:
       vmImage: 'ubuntu-latest'
     steps:
     - checkout: self
 
-    # Install Node.js
     - task: NodeTool@0
       inputs:
         versionSpec: '16.x'
       displayName: 'Install Node.js'
 
-    # Install dependencies
     - script: |
         npm install
       displayName: 'Install Dependencies'
 
-    # Optional: build step if you have one
-    #- script: npm run build
-    #  displayName: 'Build Application'
-
-    # Debug: list files
     - script: |
         echo "Listing app folder:"
-        ls -lh
-      displayName: 'Debug: List files'
+        ls -R $(Build.SourcesDirectory)
+      displayName: 'Debug: All files'
 
-    # ✅ Publish all files for deployment
     - task: PublishPipelineArtifact@1
       inputs:
         targetPath: '$(Build.SourcesDirectory)'
         artifactName: 'nodeapp'
 
-# =========================
-# Stage 2: Deploy
-# =========================
 - stage: Deploy
   displayName: 'Deploy Node.js App'
   dependsOn: Build
   jobs:
   - job: DeployJob
-    displayName: 'Deploy to Remote Server'
     pool:
-      name: 'Java_Deployment'   # Your self-hosted agent if needed
+      name: 'Java_Deployment'
     steps:
-    - download: current
-      artifact: 'nodeapp'
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifactName: 'nodeapp'
+        targetPath: '$(Pipeline.Workspace)/nodeapp'
 
     - task: CopyFilesOverSSH@0
       inputs:
         sshEndpoint: 'Java_YAML'
         sourceFolder: '$(Pipeline.Workspace)/nodeapp'
+        contents: '**'                         # ensure all files
         targetFolder: '/home/itadmin/node-sample'
         cleanTargetFolder: true
 
@@ -71,5 +58,7 @@ stages:
         runOptions: 'commands'
         commands: |
           cd /home/itadmin/node-sample
+          pwd
+          ls -la
           npm install --production
           pm2 restart all || pm2 start index.js --name node-sample
