@@ -62,7 +62,7 @@ stages:
       inputs:
         sshEndpoint: 'Java_YAML'
         sourceFolder: '$(Pipeline.Workspace)/nodeapp'
-        targetFolder: '/var/www/node-sample'
+        targetFolder: '/home/itadmin/node-sample'
         cleanTargetFolder: true
 
     - task: SSH@0
@@ -70,6 +70,6 @@ stages:
         sshEndpoint: 'Java_YAML'
         runOptions: 'commands'
         commands: |
-          cd /var/www/node-sample
+          cd /home/itadmin/node-sample
           npm install --production
           pm2 restart all || pm2 start index.js --name node-sample
